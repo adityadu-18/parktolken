@@ -9,47 +9,152 @@ interface CameraCaptureProps {
 }
 
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const didFallbackRef = useRef(false);
   const [isActive, setIsActive] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Attach stream to video element whenever both are available
-  useEffect(() => {
-    if (isActive && videoRef.current && streamRef.current) {
-      const video = videoRef.current;
-      video.srcObject = streamRef.current;
-      video.play().catch(console.error);
-    }
-  }, [isActive]);
+  const stopCamera = useCallback(() => {
+    const video = videoRef.current;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+    }
+
+    streamRef.current?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.onmute = null;
+      track.stop();
+    });
+
+    streamRef.current = null;
+    setIsActive(false);
+    setFlashOn(false);
   }, []);
+
+  const attachStreamToVideo = useCallback(async () => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+      await new Promise<void>((resolve) => {
+        const onReady = () => resolve();
+        video.addEventListener("loadedmetadata", onReady, { once: true });
+        video.addEventListener("loadeddata", onReady, { once: true });
+      });
+    }
+
+    await video.play();
+  }, []);
+
+  const recoverWithFallbackStream = useCallback(async () => {
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true,
+      });
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = fallbackStream;
+
+      const track = fallbackStream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => {
+          setError("Camera preview stopped unexpectedly. Please reopen the camera.");
+          stopCamera();
+        };
+      }
+
+      await attachStreamToVideo();
+    } catch {
+      setError("Camera preview stopped unexpectedly. Please reopen the camera.");
+      stopCamera();
+    }
+  }, [attachStreamToVideo, stopCamera]);
+
+  const bindTrackLifecycle = useCallback((stream: MediaStream) => {
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+
+    track.onended = () => {
+      if (!didFallbackRef.current) {
+        didFallbackRef.current = true;
+        void recoverWithFallbackStream();
+        return;
+      }
+
+      setError("Camera preview stopped unexpectedly. Please reopen the camera.");
+      stopCamera();
+    };
+  }, [recoverWithFallbackStream, stopCamera]);
+
+  const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+
+    if (node && streamRef.current) {
+      void attachStreamToVideo().catch(() => {
+        setError("Camera preview failed to start. Please try again.");
+        stopCamera();
+      });
+    }
+  }, [attachStreamToVideo, stopCamera]);
 
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      streamRef.current = stream;
-      setIsActive(true);
       setError(null);
+      didFallbackRef.current = false;
+      stopCamera();
+
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: true,
+        });
+      }
+
+      streamRef.current = stream;
+      bindTrackLifecycle(stream);
+      setIsActive(true);
+
+      requestAnimationFrame(() => {
+        void attachStreamToVideo().catch(() => {
+          setError("Camera preview failed to start. Please try again.");
+          stopCamera();
+        });
+      });
     } catch {
       setError("Could not access camera. Please allow camera permissions.");
+      stopCamera();
     }
-  }, []);
+  }, [attachStreamToVideo, bindTrackLifecycle, stopCamera]);
 
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setIsActive(false);
-  }, []);
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
@@ -69,7 +174,9 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     const track = streamRef.current?.getVideoTracks()[0];
     if (!track) return;
     try {
-      await (track as any).applyConstraints({ advanced: [{ torch: !flashOn }] });
+      await (track as MediaStreamTrack & {
+        applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+      }).applyConstraints?.({ advanced: [{ torch: !flashOn } as MediaTrackConstraintSet] });
       setFlashOn(!flashOn);
     } catch {
       // Flash not supported
@@ -83,9 +190,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center gap-4 p-6"
       >
-        {error && (
-          <p className="text-destructive text-sm text-center">{error}</p>
-        )}
+        {error && <p className="text-destructive text-sm text-center">{error}</p>}
         <Button variant="hero" size="lg" className="w-full max-w-xs rounded-2xl h-14" onClick={startCamera}>
           <Camera className="mr-2 h-5 w-5" />
           Open Camera
@@ -98,37 +203,39 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed inset-0 z-50 flex flex-col bg-foreground"
-    >
-      <video ref={videoRef} className="flex-1 object-cover w-full h-full" autoPlay playsInline muted />
-      <canvas ref={canvasRef} className="hidden" />
-      <div className="absolute bottom-0 inset-x-0 p-6 flex items-center justify-center gap-6 bg-gradient-to-t from-foreground/80 to-transparent pb-10">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground h-12 w-12 rounded-full bg-foreground/40"
-          onClick={toggleFlash}
-        >
-          {flashOn ? <Zap className="h-5 w-5" /> : <ZapOff className="h-5 w-5" />}
-        </Button>
-        <button
-          onClick={capturePhoto}
-          className="rounded-full border-4 border-primary-foreground bg-primary-foreground/20 flex items-center justify-center active:scale-90 transition-transform"
-          style={{ height: 72, width: 72 }}
-        >
-          <div className="rounded-full bg-primary-foreground" style={{ height: 56, width: 56 }} />
-        </button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground h-12 w-12 rounded-full bg-foreground/40"
-          onClick={() => { stopCamera(); onClose(); }}
-        >
-          <RotateCcw className="h-5 w-5" />
-        </Button>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 bg-foreground">
+      <div className="relative h-full w-full overflow-hidden">
+        <video ref={setVideoElement} className="absolute inset-0 h-full w-full object-cover" autoPlay playsInline muted />
+        <canvas ref={canvasRef} className="hidden" />
+
+        <div className="absolute bottom-0 inset-x-0 p-6 flex items-center justify-center gap-6 bg-gradient-to-t from-foreground/80 to-transparent pb-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary-foreground h-12 w-12 rounded-full bg-foreground/40"
+            onClick={toggleFlash}
+          >
+            {flashOn ? <Zap className="h-5 w-5" /> : <ZapOff className="h-5 w-5" />}
+          </Button>
+          <button
+            onClick={capturePhoto}
+            className="rounded-full border-4 border-primary-foreground bg-primary-foreground/20 flex items-center justify-center active:scale-90 transition-transform"
+            style={{ height: 72, width: 72 }}
+          >
+            <div className="rounded-full bg-primary-foreground" style={{ height: 56, width: 56 }} />
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary-foreground h-12 w-12 rounded-full bg-foreground/40"
+            onClick={() => {
+              stopCamera();
+              onClose();
+            }}
+          >
+            <RotateCcw className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
     </motion.div>
   );
