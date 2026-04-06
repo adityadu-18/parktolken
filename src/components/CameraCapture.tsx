@@ -1,7 +1,7 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Camera, RotateCcw, Zap, ZapOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -16,16 +16,28 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const [flashOn, setFlashOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Attach stream to video element whenever both are available
+  useEffect(() => {
+    if (isActive && videoRef.current && streamRef.current) {
+      const video = videoRef.current;
+      video.srcObject = streamRef.current;
+      video.play().catch(console.error);
+    }
+  }, [isActive]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setIsActive(true);
       setError(null);
     } catch {
@@ -91,7 +103,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
       animate={{ opacity: 1 }}
       className="fixed inset-0 z-50 flex flex-col bg-foreground"
     >
-      <video ref={videoRef} className="flex-1 object-cover" playsInline muted />
+      <video ref={videoRef} className="flex-1 object-cover w-full h-full" autoPlay playsInline muted />
       <canvas ref={canvasRef} className="hidden" />
       <div className="absolute bottom-0 inset-x-0 p-6 flex items-center justify-center gap-6 bg-gradient-to-t from-foreground/80 to-transparent pb-10">
         <Button
@@ -104,10 +116,10 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         </Button>
         <button
           onClick={capturePhoto}
-          className="h-18 w-18 rounded-full border-4 border-primary-foreground bg-primary-foreground/20 flex items-center justify-center active:scale-90 transition-transform"
+          className="rounded-full border-4 border-primary-foreground bg-primary-foreground/20 flex items-center justify-center active:scale-90 transition-transform"
           style={{ height: 72, width: 72 }}
         >
-          <div className="h-14 w-14 rounded-full bg-primary-foreground" style={{ height: 56, width: 56 }} />
+          <div className="rounded-full bg-primary-foreground" style={{ height: 56, width: 56 }} />
         </button>
         <Button
           variant="ghost"
