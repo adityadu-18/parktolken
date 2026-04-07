@@ -19,18 +19,15 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current;
-
     if (video) {
       video.pause();
       video.srcObject = null;
     }
-
     streamRef.current?.getTracks().forEach((track) => {
       track.onended = null;
       track.onmute = null;
       track.stop();
     });
-
     streamRef.current = null;
     setIsActive(false);
     setFlashOn(false);
@@ -39,7 +36,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const attachStreamToVideo = useCallback(async () => {
     const video = videoRef.current;
     const stream = streamRef.current;
-
     if (!video || !stream) return;
 
     video.srcObject = stream;
@@ -56,20 +52,14 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         video.addEventListener("loadeddata", onReady, { once: true });
       });
     }
-
     await video.play();
   }, []);
 
   const recoverWithFallbackStream = useCallback(async () => {
     try {
-      const fallbackStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: true,
-      });
-
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = fallbackStream;
-
       const track = fallbackStream.getVideoTracks()[0];
       if (track) {
         track.onended = () => {
@@ -77,7 +67,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           stopCamera();
         };
       }
-
       await attachStreamToVideo();
     } catch {
       setError("Camera preview stopped unexpectedly. Please reopen the camera.");
@@ -88,14 +77,12 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const bindTrackLifecycle = useCallback((stream: MediaStream) => {
     const track = stream.getVideoTracks()[0];
     if (!track) return;
-
     track.onended = () => {
       if (!didFallbackRef.current) {
         didFallbackRef.current = true;
         void recoverWithFallbackStream();
         return;
       }
-
       setError("Camera preview stopped unexpectedly. Please reopen the camera.");
       stopCamera();
     };
@@ -103,7 +90,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
   const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
-
     if (node && streamRef.current) {
       void attachStreamToVideo().catch(() => {
         setError("Camera preview failed to start. Please try again.");
@@ -119,19 +105,13 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
       stopCamera();
 
       let stream: MediaStream;
-
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-          },
+          video: { facingMode: { ideal: "environment" } },
         });
       } catch {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: true,
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
       }
 
       streamRef.current = stream;
@@ -150,13 +130,10 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     }
   }, [attachStreamToVideo, bindTrackLifecycle, stopCamera]);
 
+  // Auto-start camera immediately on mount
   useEffect(() => {
-    if (autoStart) {
-      startCamera();
-    }
-    return () => {
-      stopCamera();
-    };
+    startCamera();
+    return () => { stopCamera(); };
   }, []);
 
   const capturePhoto = useCallback(() => {
@@ -186,22 +163,29 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     }
   }, [flashOn]);
 
+  // While camera is loading or if there's an error, show a full-screen overlay
   if (!isActive) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center gap-4 p-6"
-      >
-        {error && <p className="text-destructive text-sm text-center">{error}</p>}
-        <Button variant="hero" size="lg" className="w-full max-w-xs rounded-2xl h-14" onClick={startCamera}>
-          <Camera className="mr-2 h-5 w-5" />
-          Open Camera
-        </Button>
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-      </motion.div>
+      <div className="fixed inset-0 z-50 bg-foreground flex items-center justify-center">
+        {error ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-4 p-6"
+          >
+            <p className="text-destructive text-sm text-center">{error}</p>
+            <Button variant="hero" size="lg" className="rounded-2xl h-14 px-8" onClick={startCamera}>
+              <Camera className="mr-2 h-5 w-5" />
+              Retry Camera
+            </Button>
+            <Button variant="ghost" className="text-primary-foreground" onClick={onClose}>
+              Go Back
+            </Button>
+          </motion.div>
+        ) : (
+          <div className="text-primary-foreground text-sm animate-pulse">Opening camera…</div>
+        )}
+      </div>
     );
   }
 
@@ -231,10 +215,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
             variant="ghost"
             size="icon"
             className="text-primary-foreground h-12 w-12 rounded-full bg-foreground/40"
-            onClick={() => {
-              stopCamera();
-              onClose();
-            }}
+            onClick={() => { stopCamera(); onClose(); }}
           >
             <RotateCcw className="h-5 w-5" />
           </Button>
