@@ -22,10 +22,10 @@ interface ParkingResultsProps {
 
 export function ParkingResults({ analysis, imageData, onBack }: ParkingResultsProps) {
   const statusIcon = analysis.isAllowed === true
-    ? <CheckCircle2 className="h-8 w-8 text-success" />
+    ? <CheckCircle2 className="h-8 w-8 text-white" />
     : analysis.isAllowed === false
-    ? <XCircle className="h-8 w-8 text-destructive" />
-    : <AlertTriangle className="h-8 w-8 text-warning" />;
+    ? <XCircle className="h-8 w-8 text-white" />
+    : <AlertTriangle className="h-8 w-8 text-white" />;
 
   const statusBg = analysis.isAllowed === true
     ? "bg-success border-success text-success-foreground"
