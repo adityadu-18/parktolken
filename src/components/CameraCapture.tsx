@@ -6,9 +6,10 @@ import { motion } from "framer-motion";
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
   onClose: () => void;
+  autoStart?: boolean;
 }
 
-export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
+export function CameraCapture({ onCapture, onClose, autoStart = false }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -151,10 +152,13 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   }, [attachStreamToVideo, bindTrackLifecycle, stopCamera]);
 
   useEffect(() => {
+    if (autoStart) {
+      startCamera();
+    }
     return () => {
       stopCamera();
     };
-  }, [stopCamera]);
+  }, []);
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
