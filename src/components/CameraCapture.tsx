@@ -9,7 +9,7 @@ interface CameraCaptureProps {
   autoStart?: boolean;
 }
 
-export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
+export function CameraCapture({ onCapture, onClose, autoStart = false }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
