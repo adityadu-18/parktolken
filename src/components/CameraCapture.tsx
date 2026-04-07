@@ -152,10 +152,13 @@ export function CameraCapture({ onCapture, onClose, autoStart = false }: CameraC
   }, [attachStreamToVideo, bindTrackLifecycle, stopCamera]);
 
   useEffect(() => {
+    if (autoStart) {
+      startCamera();
+    }
     return () => {
       stopCamera();
     };
-  }, [stopCamera]);
+  }, []);
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;

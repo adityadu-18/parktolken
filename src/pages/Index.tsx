@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Camera, Upload, ParkingCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ const Index = () => {
   };
 
   if (state === "camera") {
-    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} />;
+    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} autoStart />;
   }
 
   if (state === "loading") {
@@ -59,7 +59,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 gap-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -105,9 +104,9 @@ const Index = () => {
         </motion.div>
       </div>
 
-      {/* Footer */}
-      <div className="text-center py-4 text-xs text-muted-foreground">
-        Images are processed temporarily and never stored
+      <div className="text-center py-4 space-y-1">
+        <p className="text-xs text-muted-foreground">Images are processed temporarily and never stored</p>
+        <p className="text-muted-foreground" style={{ fontSize: '11px' }}>© 2025 Designed by Aditya Udapudi</p>
       </div>
     </div>
   );
