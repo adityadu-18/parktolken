@@ -6,10 +6,9 @@ import { motion } from "framer-motion";
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
   onClose: () => void;
-  autoStart?: boolean;
 }
 
-export function CameraCapture({ onCapture, onClose, autoStart = false }: CameraCaptureProps) {
+export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
