@@ -38,7 +38,7 @@ const Index = () => {
   };
 
   if (state === "camera") {
-    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} autoStart />;
+    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} />;
   }
 
   if (state === "loading") {
@@ -66,11 +66,11 @@ const Index = () => {
           transition={{ duration: 0.5 }}
           className="text-center"
         >
-          <div className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-primary/10 mb-6">
-            <ParkingCircle className="h-10 w-10 text-primary" />
+          <div className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-primary mb-6">
+            <ParkingCircle className="h-10 w-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">ParkTolken</h1>
-          <p className="text-muted-foreground text-base max-w-xs mx-auto">
+          <h1 className="text-3xl font-bold tracking-tight mb-2 text-primary">ParkTolken</h1>
+          <p className="text-foreground/70 text-base max-w-xs mx-auto font-medium">
             Scan Swedish parking signs and instantly know if you can park here
           </p>
         </motion.div>
