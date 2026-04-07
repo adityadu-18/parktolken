@@ -38,7 +38,7 @@ const Index = () => {
   };
 
   if (state === "camera") {
-    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} autoStart />;
+    return <CameraCapture onCapture={handleImage} onClose={() => setState("home")} />;
   }
 
   if (state === "loading") {
