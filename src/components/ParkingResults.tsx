@@ -28,10 +28,10 @@ export function ParkingResults({ analysis, imageData, onBack }: ParkingResultsPr
     : <AlertTriangle className="h-8 w-8 text-warning" />;
 
   const statusBg = analysis.isAllowed === true
-    ? "bg-success/10 border-success/20"
+    ? "bg-success border-success text-success-foreground"
     : analysis.isAllowed === false
-    ? "bg-destructive/10 border-destructive/20"
-    : "bg-warning/10 border-warning/20";
+    ? "bg-destructive border-destructive text-destructive-foreground"
+    : "bg-warning border-warning text-warning-foreground";
 
   return (
     <motion.div
