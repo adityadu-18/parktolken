@@ -166,7 +166,12 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   // While camera is loading or if there's an error, show a full-screen overlay
   if (!isActive) {
     return (
-      <div className="fixed inset-0 z-50 bg-foreground flex items-center justify-center">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="fixed inset-0 z-50 bg-foreground flex items-center justify-center"
+      >
         {error ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -185,12 +190,12 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         ) : (
           <div className="text-primary-foreground text-sm animate-pulse">Opening camera…</div>
         )}
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 bg-foreground">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="fixed inset-0 z-50 bg-foreground">
       <div className="relative h-full w-full overflow-hidden">
         <video ref={setVideoElement} className="absolute inset-0 h-full w-full object-cover" autoPlay playsInline muted />
         <canvas ref={canvasRef} className="hidden" />
