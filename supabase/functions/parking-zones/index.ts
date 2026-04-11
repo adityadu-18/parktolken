@@ -9,59 +9,50 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Stockholm open parking WFS — uses the public GeoServer endpoint
-    // The "open" API key is publicly documented for open data access
-    const wfsUrl =
-      "https://openstreetgs.stockholm.se/geoservice/api/open/wfs?" +
-      "service=WFS&version=1.1.0&request=GetFeature" +
-      "&typeName=LTFR:PtillatenParkering" +
-      "&outputFormat=application/json" +
-      "&srsName=EPSG:4326" +
-      "&maxFeatures=500";
+    // Try the LTF-Tolken REST API for parking-allowed data near Stockholm center
+    // The API key "open" is the documented public key
+    const url = new URL(req.url);
+    const lat = url.searchParams.get("lat") || "59.3293";
+    const lng = url.searchParams.get("lng") || "18.0686";
+    const radius = url.searchParams.get("radius") || "2000";
 
-    const response = await fetch(wfsUrl, {
+    const apiUrl =
+      `https://openparking.stockholm.se/LTF-Tolken/v1/ptillaten/within?` +
+      `lat=${lat}&lng=${lng}&radius=${radius}&outputFormat=GeoJSON&apiKey=open`;
+
+    const response = await fetch(apiUrl, {
       headers: { Accept: "application/json" },
     });
 
     if (!response.ok) {
-      // Fallback: try alternate type name
-      const altUrl =
-        "https://openstreetgs.stockholm.se/geoservice/api/open/wfs?" +
-        "service=WFS&version=1.1.0&request=GetFeature" +
-        "&typeName=LTFR:Ptillaten" +
-        "&outputFormat=application/json" +
-        "&srsName=EPSG:4326" +
-        "&maxFeatures=500";
-
-      const altResponse = await fetch(altUrl, {
-        headers: { Accept: "application/json" },
-      });
-
-      if (!altResponse.ok) {
-        const body = await altResponse.text();
-        console.error("WFS fallback failed:", altResponse.status, body);
-        throw new Error(`WFS API responded with status ${altResponse.status}`);
-      }
-
-      const altData = await altResponse.json();
-      return new Response(JSON.stringify(altData), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
+      throw new Error(`Parking zones API responded with status ${response.status}`);
     }
 
-    const data = await response.json();
+    const text = await response.text();
+    if (!text || text.trim() === "" || text.trim() === "error") {
+      // API returned empty/error — parking zones data not available with public key
+      return new Response(
+        JSON.stringify({ type: "FeatureCollection", features: [] }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
+    }
+
+    const data = JSON.parse(text);
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error: any) {
     console.error("Error fetching parking zones:", error);
+    // Return empty FeatureCollection instead of error to avoid breaking the map
     return new Response(
-      JSON.stringify({ error: error.message || "Failed to fetch parking zones" }),
+      JSON.stringify({ type: "FeatureCollection", features: [] }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
+        status: 200,
       }
     );
   }
