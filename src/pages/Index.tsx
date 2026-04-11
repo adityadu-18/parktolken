@@ -13,6 +13,7 @@ import { toast } from "sonner";
 type AppState = "home" | "camera" | "loading" | "results";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [state, setState] = useState<AppState>("home");
   const [analysis, setAnalysis] = useState<ParkingAnalysis | null>(null);
   const [capturedImage, setCapturedImage] = useState<string>("");
@@ -93,6 +94,16 @@ const Index = () => {
           </Button>
 
           <ImageUpload onUpload={handleImage} />
+
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full max-w-xs rounded-2xl h-14 border-2 border-primary text-primary font-semibold text-base hover:bg-primary hover:text-primary-foreground transition-colors"
+            onClick={() => navigate("/parking-map")}
+          >
+            <MapPin className="mr-2 h-5 w-5" />
+            Find Parking Near Me
+          </Button>
         </motion.div>
 
         <motion.div
