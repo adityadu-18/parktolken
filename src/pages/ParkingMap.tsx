@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import { ArrowLeft, Navigation, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { fetchParkingFacilities, type ParkingFacility } from "@/lib/parkingApi";
+import { fetchParkingFacilities, fetchParkingZones, type ParkingFacility } from "@/lib/parkingApi";
 import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 
@@ -43,7 +43,6 @@ function getMarkerIcon(facility: ParkingFacility) {
   return redIcon;
 }
 
-// Component to recenter map when location changes
 function RecenterMap({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -54,15 +53,23 @@ function RecenterMap({ center }: { center: [number, number] }) {
 
 const STOCKHOLM_CENTER: [number, number] = [59.3293, 18.0686];
 
+const zoneStyle: L.PathOptions = {
+  color: "#2563eb",
+  weight: 2,
+  opacity: 0.6,
+  fillColor: "#3b82f6",
+  fillOpacity: 0.2,
+};
+
 export default function ParkingMap() {
   const navigate = useNavigate();
   const [facilities, setFacilities] = useState<ParkingFacility[]>([]);
+  const [zones, setZones] = useState<GeoJSON.FeatureCollection | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState(false);
 
   useEffect(() => {
-    // Get user location
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation([pos.coords.latitude, pos.coords.longitude]);
@@ -77,18 +84,18 @@ export default function ParkingMap() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
 
-    // Fetch parking data
-    fetchParkingFacilities()
-      .then((data) => {
-        setFacilities(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        toast.error("Failed to load parking data", {
-          description: err.message,
-        });
-        setLoading(false);
-      });
+    // Fetch parking data and zones in parallel
+    Promise.all([
+      fetchParkingFacilities().catch((err) => {
+        toast.error("Failed to load parking data", { description: err.message });
+        return [] as ParkingFacility[];
+      }),
+      fetchParkingZones().catch(() => null),
+    ]).then(([facilitiesData, zonesData]) => {
+      setFacilities(facilitiesData);
+      setZones(zonesData);
+      setLoading(false);
+    });
   }, []);
 
   const mapCenter = userLocation || STOCKHOLM_CENTER;
@@ -140,7 +147,7 @@ export default function ParkingMap() {
       </div>
 
       {/* Legend */}
-      <div className="bg-card border-b border-border px-4 py-2 flex items-center gap-4 text-xs font-medium">
+      <div className="bg-card border-b border-border px-4 py-2 flex items-center gap-4 text-xs font-medium flex-wrap">
         <span className="flex items-center gap-1">
           <span className="h-3 w-3 rounded-full bg-green-600 inline-block" /> Available
         </span>
@@ -149,6 +156,9 @@ export default function ParkingMap() {
         </span>
         <span className="flex items-center gap-1">
           <span className="h-3 w-3 rounded-full bg-red-600 inline-block" /> Full
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-3 w-3 rounded bg-blue-500/30 border border-blue-600 inline-block" /> Street Parking
         </span>
       </div>
 
@@ -166,6 +176,9 @@ export default function ParkingMap() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <RecenterMap center={mapCenter} />
+
+          {/* Parking zones layer */}
+          {zones && <GeoJSON data={zones} style={zoneStyle} />}
 
           {/* User location marker */}
           <Marker
