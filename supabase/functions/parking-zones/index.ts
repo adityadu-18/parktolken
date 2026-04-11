@@ -9,23 +9,37 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Stockholm open parking WFS — uses the public GeoServer endpoint
+    // The "open" API key is publicly documented for open data access
     const wfsUrl =
-      "https://openparking.stockholm.se/LTF-Parking/v2.1/servicedagar/weekday/months/7,8?outputFormat=GeoJSON&apiKey=open";
+      "https://openstreetgs.stockholm.se/geoservice/api/open/wfs?" +
+      "service=WFS&version=1.1.0&request=GetFeature" +
+      "&typeName=LTFR:PtillatenParkering" +
+      "&outputFormat=application/json" +
+      "&srsName=EPSG:4326" +
+      "&maxFeatures=500";
 
     const response = await fetch(wfsUrl, {
       headers: { Accept: "application/json" },
     });
 
     if (!response.ok) {
-      // Try alternative endpoint
+      // Fallback: try alternate type name
       const altUrl =
-        "https://openparking.stockholm.se/geoserver/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=od_gis:ParkeringTillaten&outputFormat=application/json&srsName=EPSG:4326";
+        "https://openstreetgs.stockholm.se/geoservice/api/open/wfs?" +
+        "service=WFS&version=1.1.0&request=GetFeature" +
+        "&typeName=LTFR:Ptillaten" +
+        "&outputFormat=application/json" +
+        "&srsName=EPSG:4326" +
+        "&maxFeatures=500";
 
       const altResponse = await fetch(altUrl, {
         headers: { Accept: "application/json" },
       });
 
       if (!altResponse.ok) {
+        const body = await altResponse.text();
+        console.error("WFS fallback failed:", altResponse.status, body);
         throw new Error(`WFS API responded with status ${altResponse.status}`);
       }
 
