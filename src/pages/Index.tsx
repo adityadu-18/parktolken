@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Upload, ParkingCircle } from "lucide-react";
+import { Camera, Upload, ParkingCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CameraCapture } from "@/components/CameraCapture";
 import { ImageUpload } from "@/components/ImageUpload";
