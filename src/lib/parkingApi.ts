@@ -18,7 +18,6 @@ export async function fetchParkingFacilities(): Promise<ParkingFacility[]> {
     throw new Error(error.message || "Failed to fetch parking data");
   }
 
-  // The API response structure may vary — normalize it
   const raw = Array.isArray(data) ? data : data?.Result || data?.result || [];
 
   return raw.map((item: any, index: number) => ({
@@ -31,4 +30,25 @@ export async function fetchParkingFacilities(): Promise<ParkingFacility[]> {
     freeSpaces: parseInt(item.LedigaBesoksplatser || item.FreeSpaces || item.freeSpaces || 0, 10),
     type: item.Anlaggningstyp || item.Type || item.type || "Garage",
   }));
+}
+
+export async function fetchParkingZones(): Promise<GeoJSON.FeatureCollection | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("parking-zones");
+
+    if (error) {
+      console.warn("Failed to fetch parking zones:", error.message);
+      return null;
+    }
+
+    if (data && data.type === "FeatureCollection" && Array.isArray(data.features)) {
+      return data as GeoJSON.FeatureCollection;
+    }
+
+    console.warn("Parking zones response is not valid GeoJSON");
+    return null;
+  } catch (e) {
+    console.warn("Parking zones fetch failed:", e);
+    return null;
+  }
 }
