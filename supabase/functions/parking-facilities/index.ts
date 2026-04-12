@@ -16,12 +16,12 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const lat = url.searchParams.get("lat") || "59.3293";
     const lng = url.searchParams.get("lng") || "18.0686";
-    const radius = url.searchParams.get("radius") || "500";
+    const radius = url.searchParams.get("radius") || "1000";
 
-    // Fetch multiple parking types in parallel
+    // Correct endpoint paths per LTF-Tolken API docs
     const endpoints = [
       { type: "parking", path: "ptillaten" },
-      { type: "disabled", path: "phandikapp" },
+      { type: "disabled", path: "p-handikapp" },
       { type: "motorcycle", path: "pmotorcykel" },
       { type: "truck", path: "plastbil" },
       { type: "bus", path: "pbuss" },
@@ -40,12 +40,16 @@ Deno.serve(async (req) => {
 
         if (!resp.ok) {
           const text = await resp.text();
-          console.warn(`${ep.type} API error ${resp.status}: ${text}`);
+          console.warn(`${ep.type} (${ep.path}) API error ${resp.status}`);
           return [];
         }
 
         const data = await resp.json();
         const features = data?.features || data?.Features || [];
+        if (!Array.isArray(features)) {
+          console.warn(`${ep.type}: unexpected response format`);
+          return [];
+        }
         return features.map((f: any) => ({
           ...f,
           _parkingType: ep.type,
@@ -57,6 +61,8 @@ Deno.serve(async (req) => {
       r.status === "fulfilled" ? r.value : []
     );
 
+    console.log(`Returning ${allFeatures.length} features for lat=${lat}, lng=${lng}, radius=${radius}`);
+
     return new Response(JSON.stringify(allFeatures), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -64,9 +70,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error("Error fetching parking data:", error);
     return new Response(
-      JSON.stringify({
-        error: error.message || "Failed to fetch parking data",
-      }),
+      JSON.stringify({ error: error.message || "Failed to fetch parking data" }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
