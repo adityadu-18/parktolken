@@ -16,12 +16,11 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const lat = url.searchParams.get("lat") || "59.3293";
     const lng = url.searchParams.get("lng") || "18.0686";
-    const radius = url.searchParams.get("radius") || "1000";
+    const radius = url.searchParams.get("radius") || "2000";
 
-    // Correct endpoint paths per LTF-Tolken API docs
+    // LTF-Tolken API endpoints (Stockholm city only)
     const endpoints = [
       { type: "parking", path: "ptillaten" },
-      { type: "disabled", path: "p-handikapp" },
       { type: "motorcycle", path: "pmotorcykel" },
       { type: "truck", path: "plastbil" },
       { type: "bus", path: "pbuss" },
