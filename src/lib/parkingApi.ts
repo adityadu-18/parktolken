@@ -13,7 +13,7 @@ export interface ParkingFeature {
 export async function fetchParkingFacilities(
   lat = 59.3293,
   lng = 18.0686,
-  radius = 2000
+  radius = 3000
 ): Promise<ParkingFeature[]> {
   const resp = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parking-facilities?lat=${lat}&lng=${lng}&radius=${radius}`,
