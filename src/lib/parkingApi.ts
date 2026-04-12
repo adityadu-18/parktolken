@@ -15,15 +15,6 @@ export async function fetchParkingFacilities(
   lng = 18.0686,
   radius = 500
 ): Promise<ParkingFeature[]> {
-  const { data, error } = await supabase.functions.invoke(
-    "parking-facilities",
-    {
-      body: null,
-      headers: {},
-    }
-  );
-
-  // Use query params via GET-style invocation
   const resp = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parking-facilities?lat=${lat}&lng=${lng}&radius=${radius}`,
     {
