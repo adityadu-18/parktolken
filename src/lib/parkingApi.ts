@@ -92,7 +92,7 @@ export async function fetchParkingFacilities(
 export async function fetchParkingZones(
   lat = 59.3293,
   lng = 18.0686,
-  radius = 500
+  radius = 1000
 ): Promise<GeoJSON.FeatureCollection | null> {
   try {
     const resp = await fetch(
