@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+// Parking API client for Stockholm LTF-Tolken data
 
 export interface ParkingFeature {
   id: string;
