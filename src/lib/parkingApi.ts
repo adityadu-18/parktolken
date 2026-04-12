@@ -64,29 +64,21 @@ export async function fetchParkingFacilities(
     }
 
     const streetName =
-      props.STREET_NAME ||
-      props.street_name ||
-      props.ADDRESS ||
-      props.address ||
-      props.FEATURE_OBJECT_ID ||
-      "Unknown street";
+      props.STREET_NAME || props.ADDRESS || props.address || "Unknown street";
 
     const ruleText =
-      props.OTHER_INFO ||
-      props.other_info ||
-      props.VF_PLATS_TYP ||
-      props.PARKING_TYPE ||
-      "";
+      props.VF_PLATS_TYP || props.OTHER_INFO || "";
 
     const timeText =
-      props.START_TIME && props.END_TIME
-        ? `${props.START_TIME}–${props.END_TIME}`
-        : props.TIME_LIMIT || props.MAX_HOURS
-        ? `Max ${props.MAX_HOURS || props.TIME_LIMIT}h`
-        : "";
+      props.PARKING_RATE ||
+      (props.START_TIME !== undefined && props.END_TIME !== undefined
+        ? `${props.START_TIME}:00–${props.END_TIME}:00`
+        : props.MAX_MINUTES
+        ? `Max ${props.MAX_MINUTES} min`
+        : "");
 
     return {
-      id: props.FEATURE_OBJECT_ID || props.FID || String(index),
+      id: String(props.FEATURE_OBJECT_ID || props.FID || index),
       streetName,
       rules: ruleText,
       timeRestriction: timeText,
