@@ -1,47 +1,138 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export interface ParkingFacility {
+export interface ParkingFeature {
   id: string;
-  name: string;
-  address: string;
+  streetName: string;
+  rules: string;
+  timeRestriction: string;
   lat: number;
   lng: number;
-  totalSpaces: number;
-  freeSpaces: number;
-  type: string;
+  type: "parking" | "disabled" | "motorcycle" | "truck" | "bus" | "service";
 }
 
-export async function fetchParkingFacilities(): Promise<ParkingFacility[]> {
-  const { data, error } = await supabase.functions.invoke("parking-facilities");
+export async function fetchParkingFacilities(
+  lat = 59.3293,
+  lng = 18.0686,
+  radius = 500
+): Promise<ParkingFeature[]> {
+  const { data, error } = await supabase.functions.invoke(
+    "parking-facilities",
+    {
+      body: null,
+      headers: {},
+    }
+  );
 
-  if (error) {
-    throw new Error(error.message || "Failed to fetch parking data");
+  // Use query params via GET-style invocation
+  const resp = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parking-facilities?lat=${lat}&lng=${lng}&radius=${radius}`,
+    {
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+    }
+  );
+
+  if (!resp.ok) {
+    throw new Error("Failed to fetch parking data");
   }
 
-  const raw = Array.isArray(data) ? data : data?.Result || data?.result || [];
+  const raw = await resp.json();
+  if (!Array.isArray(raw)) return [];
 
-  return raw.map((item: any, index: number) => ({
-    id: item.Id || item.id || String(index),
-    name: item.Namn || item.Name || item.name || "Unknown",
-    address: item.Adress || item.Address || item.address || "",
-    lat: parseFloat(item.Lat || item.lat || item.Latitude || 0),
-    lng: parseFloat(item.Lng || item.lng || item.Long || item.Longitude || 0),
-    totalSpaces: parseInt(item.AntalBesoksplatser || item.TotalSpaces || item.totalSpaces || 0, 10),
-    freeSpaces: parseInt(item.LedigaBesoksplatser || item.FreeSpaces || item.freeSpaces || 0, 10),
-    type: item.Anlaggningstyp || item.Type || item.type || "Garage",
-  }));
+  return raw.map((item: any, index: number) => {
+    const props = item.properties || item.Properties || {};
+    const geom = item.geometry || item.Geometry || {};
+    const coords = geom.coordinates || [];
+
+    // Get center point from geometry
+    let lat = 0,
+      lng = 0;
+    if (geom.type === "Point") {
+      [lng, lat] = coords;
+    } else if (
+      geom.type === "LineString" ||
+      geom.type === "MultiLineString"
+    ) {
+      const flatCoords =
+        geom.type === "MultiLineString" ? coords.flat() : coords;
+      if (flatCoords.length > 0) {
+        const mid = flatCoords[Math.floor(flatCoords.length / 2)];
+        [lng, lat] = mid;
+      }
+    } else if (geom.type === "Polygon" || geom.type === "MultiPolygon") {
+      const ring =
+        geom.type === "MultiPolygon" ? coords[0]?.[0] : coords[0];
+      if (ring && ring.length > 0) {
+        const sumLng = ring.reduce((s: number, c: number[]) => s + c[0], 0);
+        const sumLat = ring.reduce((s: number, c: number[]) => s + c[1], 0);
+        lng = sumLng / ring.length;
+        lat = sumLat / ring.length;
+      }
+    }
+
+    const streetName =
+      props.STREET_NAME ||
+      props.street_name ||
+      props.ADDRESS ||
+      props.address ||
+      props.FEATURE_OBJECT_ID ||
+      "Unknown street";
+
+    const ruleText =
+      props.OTHER_INFO ||
+      props.other_info ||
+      props.VF_PLATS_TYP ||
+      props.PARKING_TYPE ||
+      "";
+
+    const timeText =
+      props.START_TIME && props.END_TIME
+        ? `${props.START_TIME}–${props.END_TIME}`
+        : props.TIME_LIMIT || props.MAX_HOURS
+        ? `Max ${props.MAX_HOURS || props.TIME_LIMIT}h`
+        : "";
+
+    return {
+      id: props.FEATURE_OBJECT_ID || props.FID || String(index),
+      streetName,
+      rules: ruleText,
+      timeRestriction: timeText,
+      lat,
+      lng,
+      type: item._parkingType || "parking",
+    };
+  });
 }
 
-export async function fetchParkingZones(): Promise<GeoJSON.FeatureCollection | null> {
+export async function fetchParkingZones(
+  lat = 59.3293,
+  lng = 18.0686,
+  radius = 500
+): Promise<GeoJSON.FeatureCollection | null> {
   try {
-    const { data, error } = await supabase.functions.invoke("parking-zones");
+    const resp = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parking-zones?lat=${lat}&lng=${lng}&radius=${radius}`,
+      {
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      }
+    );
 
-    if (error) {
-      console.warn("Failed to fetch parking zones:", error.message);
+    if (!resp.ok) {
+      console.warn("Failed to fetch parking zones:", resp.status);
       return null;
     }
 
-    if (data && data.type === "FeatureCollection" && Array.isArray(data.features)) {
+    const data = await resp.json();
+    if (
+      data &&
+      data.type === "FeatureCollection" &&
+      Array.isArray(data.features)
+    ) {
       return data as GeoJSON.FeatureCollection;
     }
 

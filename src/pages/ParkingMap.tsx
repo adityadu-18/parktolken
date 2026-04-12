@@ -1,20 +1,34 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  GeoJSON,
+  useMap,
+} from "react-leaflet";
 import L from "leaflet";
-import { ArrowLeft, Navigation, MapPin, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { fetchParkingFacilities, fetchParkingZones, type ParkingFacility } from "@/lib/parkingApi";
+import {
+  fetchParkingFacilities,
+  fetchParkingZones,
+  type ParkingFeature,
+} from "@/lib/parkingApi";
 import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 
-// Fix default marker icon issue in webpack/vite
+// Fix default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
 
 function createColorIcon(color: string) {
@@ -31,22 +45,23 @@ function createColorIcon(color: string) {
   });
 }
 
-const greenIcon = createColorIcon("#16a34a");
-const yellowIcon = createColorIcon("#eab308");
-const redIcon = createColorIcon("#dc2626");
+const ICONS: Record<string, L.DivIcon> = {
+  parking: createColorIcon("#16a34a"),
+  disabled: createColorIcon("#2563eb"),
+  motorcycle: createColorIcon("#f97316"),
+  truck: createColorIcon("#8b5cf6"),
+  bus: createColorIcon("#0ea5e9"),
+  service: createColorIcon("#dc2626"),
+};
 
-function getMarkerIcon(facility: ParkingFacility) {
-  if (facility.totalSpaces === 0) return yellowIcon;
-  const ratio = facility.freeSpaces / facility.totalSpaces;
-  if (ratio > 0.2) return greenIcon;
-  if (ratio > 0.05) return yellowIcon;
-  return redIcon;
+function getMarkerIcon(type: string) {
+  return ICONS[type] || ICONS.parking;
 }
 
 function RecenterMap({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 14);
+    map.setView(center, 15);
   }, [center, map]);
   return null;
 }
@@ -58,45 +73,63 @@ const zoneStyle: L.PathOptions = {
   weight: 2,
   opacity: 0.6,
   fillColor: "#3b82f6",
-  fillOpacity: 0.2,
+  fillOpacity: 0.15,
 };
+
+const LEGEND = [
+  { color: "bg-green-600", label: "Parking allowed" },
+  { color: "bg-blue-600", label: "Disabled parking" },
+  { color: "bg-orange-500", label: "Motorcycle" },
+  { color: "bg-purple-500", label: "Truck" },
+  { color: "bg-sky-500", label: "Bus" },
+  { color: "bg-red-600", label: "Service day" },
+];
 
 export default function ParkingMap() {
   const navigate = useNavigate();
-  const [facilities, setFacilities] = useState<ParkingFacility[]>([]);
+  const [features, setFeatures] = useState<ParkingFeature[]>([]);
   const [zones, setZones] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
-  const [locationError, setLocationError] = useState(false);
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+        const loc: [number, number] = [
+          pos.coords.latitude,
+          pos.coords.longitude,
+        ];
+        setUserLocation(loc);
+        loadData(loc[0], loc[1]);
       },
       () => {
-        setLocationError(true);
         setUserLocation(STOCKHOLM_CENTER);
+        loadData(STOCKHOLM_CENTER[0], STOCKHOLM_CENTER[1]);
         toast.info("Location unavailable", {
           description: "Showing Stockholm city center instead.",
         });
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  }, []);
 
-    // Fetch parking data and zones in parallel
+  const loadData = (lat: number, lng: number) => {
     Promise.all([
-      fetchParkingFacilities().catch((err) => {
-        toast.error("Failed to load parking data", { description: err.message });
-        return [] as ParkingFacility[];
+      fetchParkingFacilities(lat, lng).catch((err) => {
+        toast.error("Failed to load parking data", {
+          description: err.message,
+        });
+        return [] as ParkingFeature[];
       }),
-      fetchParkingZones().catch(() => null),
+      fetchParkingZones(lat, lng).catch(() => null),
     ]).then(([facilitiesData, zonesData]) => {
-      setFacilities(facilitiesData);
+      setFeatures(facilitiesData);
       setZones(zonesData);
       setLoading(false);
     });
-  }, []);
+  };
 
   const mapCenter = userLocation || STOCKHOLM_CENTER;
 
@@ -147,26 +180,22 @@ export default function ParkingMap() {
       </div>
 
       {/* Legend */}
-      <div className="bg-card border-b border-border px-4 py-2 flex items-center gap-4 text-xs font-medium flex-wrap">
-        <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded-full bg-green-600 inline-block" /> Available
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded-full bg-yellow-500 inline-block" /> Limited
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded-full bg-red-600 inline-block" /> Full
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-blue-500/30 border border-blue-600 inline-block" /> Street Parking
-        </span>
+      <div className="bg-card border-b border-border px-4 py-2 flex items-center gap-3 text-xs font-medium flex-wrap">
+        {LEGEND.map((l) => (
+          <span key={l.label} className="flex items-center gap-1">
+            <span
+              className={`h-3 w-3 rounded-full ${l.color} inline-block`}
+            />
+            {l.label}
+          </span>
+        ))}
       </div>
 
       {/* Map */}
       <div className="flex-1 relative">
         <MapContainer
           center={mapCenter}
-          zoom={14}
+          zoom={15}
           className="h-full w-full"
           style={{ minHeight: "calc(100vh - 100px)" }}
           zoomControl={false}
@@ -177,10 +206,9 @@ export default function ParkingMap() {
           />
           <RecenterMap center={mapCenter} />
 
-          {/* Parking zones layer */}
           {zones && <GeoJSON data={zones} style={zoneStyle} />}
 
-          {/* User location marker */}
+          {/* User location */}
           <Marker
             position={mapCenter}
             icon={L.divIcon({
@@ -191,34 +219,39 @@ export default function ParkingMap() {
             })}
           />
 
-          {facilities
+          {features
             .filter((f) => f.lat !== 0 && f.lng !== 0)
-            .map((facility) => (
+            .map((feature) => (
               <Marker
-                key={facility.id}
-                position={[facility.lat, facility.lng]}
-                icon={getMarkerIcon(facility)}
+                key={feature.id}
+                position={[feature.lat, feature.lng]}
+                icon={getMarkerIcon(feature.type)}
               >
                 <Popup>
                   <div className="min-w-[200px]">
-                    <h3 className="font-bold text-sm mb-1">{facility.name}</h3>
-                    {facility.address && (
-                      <p className="text-xs text-gray-600 mb-2">{facility.address}</p>
+                    <h3 className="font-bold text-sm mb-1">
+                      {feature.streetName}
+                    </h3>
+                    {feature.rules && (
+                      <p className="text-xs text-gray-600 mb-1">
+                        {feature.rules}
+                      </p>
                     )}
-                    <div className="flex justify-between text-xs mb-2">
-                      <span>
-                        Available:{" "}
-                        <strong className="text-green-700">{facility.freeSpaces}</strong>
-                      </span>
-                      <span>
-                        Total: <strong>{facility.totalSpaces}</strong>
-                      </span>
-                    </div>
+                    {feature.timeRestriction && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        {feature.timeRestriction}
+                      </p>
+                    )}
+                    <span className="inline-block text-xs bg-gray-100 rounded px-2 py-0.5 mb-2 capitalize">
+                      {feature.type}
+                    </span>
                     <button
-                      onClick={() => openNavigation(facility.lat, facility.lng)}
+                      onClick={() =>
+                        openNavigation(feature.lat, feature.lng)
+                      }
                       className="w-full bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded flex items-center justify-center gap-1 hover:bg-blue-700"
                     >
-                      <span>Navigate</span>
+                      Navigate
                     </button>
                   </div>
                 </Popup>
