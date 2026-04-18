@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const lat = url.searchParams.get("lat") || "59.3293";
     const lng = url.searchParams.get("lng") || "18.0686";
-    const radius = url.searchParams.get("radius") || "3000";
+    const radius = url.searchParams.get("radius") || "250";
 
     // LTF-Tolken API endpoints (Stockholm city only)
     const endpoints = [
